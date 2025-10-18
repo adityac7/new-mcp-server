@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MCP Analytics Server - Cloud Deployment with MCP Protocol Support
+MCP Analytics Server - Streamable HTTP Transport (2025-06-18)
 """
 import os
 import json
@@ -13,8 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server import Server
-from mcp.types import Tool, TextContent, Prompt, PromptMessage
-import mcp.server.stdio
+from mcp.types import Tool, TextContent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -202,7 +201,8 @@ async def root():
         "version": "1.0.0",
         "description": "Digital Insights Analytics - 839K rows",
         "status": "running",
-        "mcp_endpoint": "/sse"
+        "protocol": "Streamable HTTP (2025-06-18)",
+        "mcp_endpoint": "/mcp"
     }
 
 @app.get("/health")
@@ -218,89 +218,139 @@ async def health():
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 
-@app.get("/sse")
-async def sse_endpoint(request: Request):
-    """MCP Server-Sent Events endpoint"""
+@app.api_route("/mcp", methods=["GET", "POST"])
+async def mcp_endpoint(request: Request):
+    """
+    Single MCP endpoint supporting both POST and GET as per Streamable HTTP spec
+    """
     
-    async def event_generator():
+    # Validate Origin header for security
+    origin = request.headers.get("origin", "")
+    # In production, validate against allowed origins
+    
+    if request.method == "GET":
+        # GET request - return SSE stream
+        accept = request.headers.get("accept", "")
+        if "text/event-stream" not in accept:
+            return JSONResponse(
+                status_code=406,
+                content={"error": "Accept header must include text/event-stream"}
+            )
+        
+        async def sse_generator():
+            try:
+                # Send connection message
+                yield f"data: {json.dumps({'type': 'connection', 'status': 'connected'})}\n\n"
+                
+                # Keep connection alive
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    await asyncio.sleep(1)
+                    yield f": keepalive\n\n"
+            except Exception as e:
+                logger.error(f"SSE error: {e}")
+        
+        return StreamingResponse(
+            sse_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            }
+        )
+    
+    elif request.method == "POST":
+        # POST request - handle JSON-RPC message
         try:
-            # Send initial connection message
-            yield f"data: {json.dumps({'type': 'connection', 'status': 'connected'})}\n\n"
+            body = await request.json()
+            method = body.get("method")
+            msg_id = body.get("id")
             
-            # Keep connection alive
-            while True:
-                if await request.is_disconnected():
-                    break
-                await asyncio.sleep(1)
-                yield f": keepalive\n\n"
-        except Exception as e:
-            logger.error(f"SSE error: {e}")
-    
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-    )
-
-@app.post("/messages")
-async def handle_messages(request: Request):
-    """Handle MCP protocol messages"""
-    try:
-        body = await request.json()
-        method = body.get("method")
-        
-        if method == "initialize":
-            return {
-                "jsonrpc": "2.0",
-                "id": body.get("id"),
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "analytics-server", "version": "1.0.0"}
+            # Check Accept header
+            accept = request.headers.get("accept", "")
+            supports_sse = "text/event-stream" in accept
+            supports_json = "application/json" in accept
+            
+            if method == "initialize":
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "protocolVersion": "2025-06-18",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "analytics-server", "version": "1.0.0"}
+                    }
                 }
-            }
+                
+                # For initialize, return JSON directly
+                return JSONResponse(content=response)
+            
+            elif method == "tools/list":
+                tools = await list_tools()
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {"tools": [
+                        {
+                            "name": t.name,
+                            "description": t.description,
+                            "inputSchema": t.inputSchema
+                        } for t in tools
+                    ]}
+                }
+                
+                # Return JSON response
+                return JSONResponse(content=response)
+            
+            elif method == "tools/call":
+                params = body.get("params", {})
+                name = params.get("name")
+                arguments = params.get("arguments", {})
+                result = await call_tool(name, arguments)
+                
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {"content": [{"type": "text", "text": r.text} for r in result]}
+                }
+                
+                # For tool calls, can return either SSE or JSON
+                if supports_sse:
+                    # Return as SSE stream
+                    async def tool_sse():
+                        yield f"data: {json.dumps(response)}\n\n"
+                    
+                    return StreamingResponse(
+                        tool_sse(),
+                        media_type="text/event-stream",
+                        headers={"Cache-Control": "no-cache"}
+                    )
+                else:
+                    # Return as JSON
+                    return JSONResponse(content=response)
+            
+            # Unknown method
+            return JSONResponse(
+                content={
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "error": {"code": -32601, "message": f"Method not found: {method}"}
+                },
+                status_code=400
+            )
         
-        elif method == "tools/list":
-            tools = await list_tools()
-            return {
-                "jsonrpc": "2.0",
-                "id": body.get("id"),
-                "result": {"tools": [
-                    {
-                        "name": t.name,
-                        "description": t.description,
-                        "inputSchema": t.inputSchema
-                    } for t in tools
-                ]}
-            }
-        
-        elif method == "tools/call":
-            params = body.get("params", {})
-            name = params.get("name")
-            arguments = params.get("arguments", {})
-            result = await call_tool(name, arguments)
-            return {
-                "jsonrpc": "2.0",
-                "id": body.get("id"),
-                "result": {"content": [{"type": "text", "text": r.text} for r in result]}
-            }
-        
-        return {
-            "jsonrpc": "2.0",
-            "id": body.get("id"),
-            "error": {"code": -32601, "message": f"Method not found: {method}"}
-        }
-    
-    except Exception as e:
-        logger.error(f"Message handling error: {e}")
-        return {
-            "jsonrpc": "2.0",
-            "id": body.get("id") if 'body' in locals() else None,
-            "error": {"code": -32603, "message": str(e)}
-        }
+        except Exception as e:
+            logger.error(f"MCP endpoint error: {e}")
+            return JSONResponse(
+                content={
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "error": {"code": -32603, "message": str(e)}
+                },
+                status_code=500
+            )
 
 if __name__ == "__main__":
     import uvicorn
