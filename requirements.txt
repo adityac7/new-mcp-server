@@ -1,0 +1,11 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+psycopg2-binary==2.9.11
+sqlparse==0.5.3
+mcp==1.18.0
+httpx==0.28.1
+httpx-sse==0.4.3
+pydantic==2.10.6
+pydantic-settings==2.11.0
+python-dotenv==1.1.1
+
