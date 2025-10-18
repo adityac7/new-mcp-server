@@ -240,8 +240,8 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind to")
     args = parser.parse_args()
 
-    # Start the server with Streamable HTTP transport
+    # Start the server with HTTP transport (uses Streamable HTTP protocol internally)
     # This creates a /mcp endpoint that both ChatGPT and Claude Desktop can connect to
-    # The server will automatically handle the Streamable HTTP protocol
-    mcp.run(transport="streamable-http", host=args.host, port=args.port)
+    # FastMCP automatically uses the latest Streamable HTTP protocol
+    mcp.run(transport="http", host=args.host, port=args.port)
 
