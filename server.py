@@ -8,7 +8,7 @@ import argparse
 from typing import Any, Dict
 import psycopg2
 import sqlparse
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # Database configuration
 DATABASE_URL = os.getenv('DATABASE_URL', '')
