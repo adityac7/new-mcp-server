@@ -5,7 +5,7 @@ sqlparse==0.5.3
 mcp==1.18.0
 httpx==0.28.1
 httpx-sse==0.4.3
-pydantic==2.10.6
+pydantic>=2.11.0
 pydantic-settings==2.11.0
 python-dotenv==1.1.1
 
