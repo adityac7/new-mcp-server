@@ -231,35 +231,47 @@ async def mcp_endpoint(request: Request):
     if request.method == "GET":
         # GET request - return SSE stream
         accept = request.headers.get("accept", "")
-        if "text/event-stream" not in accept:
+        
+        # If no specific accept header or browser request, return a friendly message
+        if not accept or "text/html" in accept:
             return JSONResponse(
-                status_code=406,
-                content={"error": "Accept header must include text/event-stream"}
+                content={
+                    "name": "MCP Analytics Server",
+                    "protocol": "Streamable HTTP (2025-06-18)",
+                    "status": "ready",
+                    "message": "MCP endpoint is active. Use POST for JSON-RPC requests or GET with Accept: text/event-stream for SSE.",
+                    "endpoints": {
+                        "health": "/health",
+                        "root": "/"
+                    }
+                }
             )
         
-        async def sse_generator():
-            try:
-                # Send connection message
-                yield f"data: {json.dumps({'type': 'connection', 'status': 'connected'})}\n\n"
-                
-                # Keep connection alive
-                while True:
-                    if await request.is_disconnected():
-                        break
-                    await asyncio.sleep(1)
-                    yield f": keepalive\n\n"
-            except Exception as e:
-                logger.error(f"SSE error: {e}")
-        
-        return StreamingResponse(
-            sse_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            }
-        )
+        # For SSE clients, return the stream
+        if "text/event-stream" in accept:
+            async def sse_generator():
+                try:
+                    # Send connection message
+                    yield f"data: {json.dumps({'type': 'connection', 'status': 'connected'})}\n\n"
+                    
+                    # Keep connection alive
+                    while True:
+                        if await request.is_disconnected():
+                            break
+                        await asyncio.sleep(1)
+                        yield f": keepalive\n\n"
+                except Exception as e:
+                    logger.error(f"SSE error: {e}")
+            
+            return StreamingResponse(
+                sse_generator(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                }
+            )
     
     elif request.method == "POST":
         # POST request - handle JSON-RPC message
