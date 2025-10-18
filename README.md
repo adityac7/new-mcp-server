@@ -128,20 +128,72 @@ curl -X POST https://your-app.onrender.com/api/query \
 curl https://your-app.onrender.com/api/stats
 ```
 
-## For ChatGPT Desktop
+## Configuration for MCP Clients
 
-Once deployed, add this to your ChatGPT MCP configuration:
+### For ChatGPT Desktop (OpenAI)
 
+1. Open ChatGPT Settings → Connectors → Advanced → Developer Mode
+2. Enable Developer Mode
+3. Add your deployed MCP server using the Streamable HTTP endpoint:
+
+**Configuration:**
 ```json
 {
   "mcpServers": {
     "analytics": {
-      "url": "https://your-app.onrender.com",
-      "transport": "http",
-      "description": "Digital Insights Analytics"
+      "url": "https://your-app.onrender.com/mcp"
     }
   }
 }
+```
+
+**Note:** ChatGPT cannot connect to localhost. You must deploy to a public URL (e.g., Render, ngrok, etc.)
+
+### For Claude Desktop
+
+1. Open Claude Desktop Settings → Developer → Edit Config
+2. Add the following to `claude_desktop_config.json`:
+
+**For Remote Server (Deployed):**
+```json
+{
+  "mcpServers": {
+    "analytics": {
+      "transport": {
+        "type": "http",
+        "url": "https://your-app.onrender.com/mcp"
+      }
+    }
+  }
+}
+```
+
+**For Local Development:**
+```json
+{
+  "mcpServers": {
+    "analytics": {
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8000/mcp"
+      }
+    }
+  }
+}
+```
+
+**Note:** The `/mcp` endpoint is critical - don't forget it!
+
+### For Claude Code (VS Code Extension)
+
+Use the CLI command:
+```bash
+claude mcp add --transport http analytics https://your-app.onrender.com/mcp
+```
+
+Or for local:
+```bash
+claude mcp add --transport http analytics http://localhost:8000/mcp
 ```
 
 ## Free Tier Limits

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 MCP Analytics Server - Using FastMCP for proper protocol support
+Compatible with both ChatGPT and Claude Desktop via Streamable HTTP
 """
 import os
 import argparse
 from typing import Any, Dict
 import psycopg2
 import sqlparse
-import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 # Database configuration
@@ -20,13 +20,9 @@ MAX_ROWS = 1000
 ALLOWED_STATEMENTS = ['SELECT']
 
 # Initialize FastMCP server
-# json_response=False uses SSE streaming (better for real-time)
-# stateless_http=False maintains session state
-mcp = FastMCP(
-    name="analytics-server",
-    json_response=False,
-    stateless_http=False
-)
+# Note: Don't pass json_response or stateless_http to constructor (deprecated in FastMCP 2.3.4+)
+# These settings are now configured when calling mcp.run()
+mcp = FastMCP(name="analytics-server")
 
 def get_db_connection():
     """Create a database connection"""
@@ -243,8 +239,9 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=int(os.getenv("PORT", 8000)), help="Port to listen on")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind to")
     args = parser.parse_args()
-    
+
     # Start the server with Streamable HTTP transport
-    # FastMCP automatically creates the /mcp endpoint
-    uvicorn.run(mcp.streamable_http_app, host=args.host, port=args.port)
+    # This creates a /mcp endpoint that both ChatGPT and Claude Desktop can connect to
+    # The server will automatically handle the Streamable HTTP protocol
+    mcp.run(transport="streamable-http", host=args.host, port=args.port)
 
