@@ -1,0 +1,55 @@
+services:
+  # Redis for Celery task queue
+  - type: redis
+    name: mcp-redis
+    plan: free
+    region: singapore
+    maxmemoryPolicy: allkeys-lru
+  
+  # Main web service (FastAPI + MCP)
+  - type: web
+    name: mcp-analytics-server-phase2
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://analytics_db_clug_user:sa1jEkjEmuIKRxQu3x6Oa83Ep4AWGSAM@dpg-d3pmmtali9vc73bn81i0-a.singapore-postgres.render.com/analytics_db_clug
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: mcp-redis
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in dashboard
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+    healthCheckPath: /health
+  
+  # Background worker (Celery)
+  - type: worker
+    name: mcp-celery-worker
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://analytics_db_clug_user:sa1jEkjEmuIKRxQu3x6Oa83Ep4AWGSAM@dpg-d3pmmtali9vc73bn81i0-a.singapore-postgres.render.com/analytics_db_clug
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: mcp-redis
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in dashboard
+      - key: ENCRYPTION_KEY
+        sync: false  # Will sync from web service
+

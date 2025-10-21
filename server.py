@@ -1,32 +1,70 @@
 #!/usr/bin/env python3
 """
-MCP Analytics Server - Using FastMCP for proper protocol support
-Compatible with both ChatGPT and Claude Desktop via Streamable HTTP
+MCP Analytics Server - Phase 2
+Multi-dataset support with AI-powered metadata via FastMCP
+Compatible with ChatGPT and Claude Desktop via Streamable HTTP
 """
 import os
 import argparse
-from typing import Any, Dict
-import psycopg2
-import sqlparse
+import json
+from typing import Any, Dict, List
+from dotenv import load_dotenv
 from fastmcp import FastMCP
+from sqlalchemy.orm import Session
 
-# Database configuration
-DATABASE_URL = os.getenv('DATABASE_URL', '')
-if DATABASE_URL.startswith('postgres://'):
-    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+# Load environment variables
+load_dotenv()
+
+from app.database import get_db, metadata_engine
+from app.models import Dataset, DatasetSchema, Metadata
+from app.encryption import get_encryption_manager
+import sqlparse
+import psycopg2
 
 # Security configuration
-MAX_ROWS = 1000
+MAX_ROWS = int(os.getenv('MAX_ROWS', 1000))
 ALLOWED_STATEMENTS = ['SELECT']
 
 # Initialize FastMCP server
-# Note: Don't pass json_response or stateless_http to constructor (deprecated in FastMCP 2.3.4+)
-# These settings are now configured when calling mcp.run()
-mcp = FastMCP(name="analytics-server")
+mcp = FastMCP(name="mcp-analytics-phase2")
 
-def get_db_connection():
-    """Create a database connection"""
-    return psycopg2.connect(DATABASE_URL)
+
+def get_active_datasets() -> List[Dict]:
+    """Get all active datasets"""
+    db = next(get_db())
+    try:
+        datasets = db.query(Dataset).filter(Dataset.is_active == True).all()
+        return [
+            {
+                'id': ds.id,
+                'name': ds.name,
+                'description': ds.description
+            }
+            for ds in datasets
+        ]
+    finally:
+        db.close()
+
+
+def get_dataset_connection(dataset_id: int):
+    """Get decrypted connection string for a dataset"""
+    db = next(get_db())
+    try:
+        dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+        if not dataset or not dataset.is_active:
+            return None
+        
+        encryption_manager = get_encryption_manager()
+        connection_string = encryption_manager.decrypt(dataset.connection_string_encrypted)
+        
+        # Fix postgres:// to postgresql://
+        if connection_string.startswith('postgres://'):
+            connection_string = connection_string.replace('postgres://', 'postgresql://', 1)
+        
+        return connection_string
+    finally:
+        db.close()
+
 
 def validate_query(query: str) -> tuple[bool, str]:
     """Validate that the query is safe to execute"""
@@ -47,12 +85,20 @@ def validate_query(query: str) -> tuple[bool, str]:
     
     return True, ""
 
-def execute_query(query: str, limit: int = None) -> Dict[str, Any]:
-    """Execute a SQL query with safety checks"""
+
+def execute_query_on_dataset(dataset_id: int, query: str, limit: int = None) -> Dict[str, Any]:
+    """Execute a SQL query on a specific dataset"""
+    # Validate query
     is_valid, error_msg = validate_query(query)
     if not is_valid:
         return {'success': False, 'error': error_msg}
     
+    # Get connection string
+    connection_string = get_dataset_connection(dataset_id)
+    if not connection_string:
+        return {'success': False, 'error': 'Dataset not found or inactive'}
+    
+    # Apply limit
     if limit is None:
         limit = MAX_ROWS
     else:
@@ -63,7 +109,7 @@ def execute_query(query: str, limit: int = None) -> Dict[str, Any]:
         query = f"{query.rstrip().rstrip(';')} LIMIT {limit}"
     
     try:
-        conn = get_db_connection()
+        conn = psycopg2.connect(connection_string)
         cur = conn.cursor()
         cur.execute(query)
         rows = cur.fetchall()
@@ -81,167 +127,154 @@ def execute_query(query: str, limit: int = None) -> Dict[str, Any]:
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
+
+# ============================================================================
+# MCP Tools
+# ============================================================================
+
 @mcp.tool()
-async def execute_sql_query(query: str) -> str:
-    """Execute a SQL SELECT query on the digital_insights database.
+async def list_available_datasets() -> str:
+    """List all available datasets in the analytics platform.
     
-    Maximum 1000 rows will be returned. Only SELECT statements are allowed.
+    Returns:
+        JSON string with list of datasets including id, name, and description
+    """
+    datasets = get_active_datasets()
+    return json.dumps({
+        'total_datasets': len(datasets),
+        'datasets': datasets
+    }, indent=2)
+
+
+@mcp.tool()
+async def get_dataset_schema(dataset_id: int) -> str:
+    """Get the schema of a specific dataset with AI-generated metadata.
+    
+    This returns table schemas with column descriptions generated by AI,
+    making it easier to understand what each column contains.
     
     Args:
+        dataset_id: ID of the dataset to get schema for
+    
+    Returns:
+        JSON string with schema information including AI-generated descriptions
+    """
+    db = next(get_db())
+    try:
+        # Get dataset info
+        dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+        if not dataset or not dataset.is_active:
+            return json.dumps({'error': 'Dataset not found or inactive'})
+        
+        # Get schema with metadata
+        schemas = db.query(DatasetSchema).filter(
+            DatasetSchema.dataset_id == dataset_id
+        ).all()
+        
+        # Get metadata
+        metadata_entries = db.query(Metadata).filter(
+            Metadata.dataset_id == dataset_id
+        ).all()
+        
+        # Create metadata lookup
+        metadata_map = {
+            f"{m.table_name}.{m.column_name}": m.description
+            for m in metadata_entries
+        }
+        
+        # Group by table
+        tables = {}
+        for schema in schemas:
+            table_name = schema.table_name
+            if table_name not in tables:
+                tables[table_name] = []
+            
+            key = f"{table_name}.{schema.column_name}"
+            tables[table_name].append({
+                'column_name': schema.column_name,
+                'data_type': schema.data_type,
+                'is_nullable': schema.is_nullable,
+                'description': metadata_map.get(key, 'No description available')
+            })
+        
+        return json.dumps({
+            'dataset_id': dataset_id,
+            'dataset_name': dataset.name,
+            'dataset_description': dataset.description,
+            'tables': tables
+        }, indent=2)
+    finally:
+        db.close()
+
+
+@mcp.tool()
+async def query_dataset(dataset_id: int, query: str) -> str:
+    """Execute a SQL SELECT query on a specific dataset.
+    
+    Only SELECT statements are allowed. Maximum 1000 rows will be returned.
+    Use get_dataset_schema() first to understand the available tables and columns.
+    
+    Args:
+        dataset_id: ID of the dataset to query
         query: SQL SELECT query to execute
     
     Returns:
-        JSON string with query results including row_count, columns, and data
+        JSON string with query results
     """
-    result = execute_query(query)
+    result = execute_query_on_dataset(dataset_id, query)
     
     if result['success']:
-        import json
         return json.dumps({
             'row_count': result['row_count'],
             'columns': result['columns'],
             'data': result['rows']
         }, indent=2, default=str)
     else:
-        return f"Error: {result['error']}"
+        return json.dumps({'error': result['error']})
+
 
 @mcp.tool()
-async def get_database_schema() -> str:
-    """Get the schema of the digital_insights table.
-    
-    Returns all column names, data types, and nullable information.
-    
-    Returns:
-        JSON string with table schema information
-    """
-    query = """
-    SELECT column_name, data_type, is_nullable
-    FROM information_schema.columns
-    WHERE table_name = 'digital_insights'
-    ORDER BY ordinal_position;
-    """
-    
-    result = execute_query(query)
-    
-    if result['success']:
-        import json
-        return json.dumps({
-            'table': 'digital_insights',
-            'total_columns': result['row_count'],
-            'columns': result['rows']
-        }, indent=2)
-    else:
-        return f"Error: {result['error']}"
-
-@mcp.tool()
-async def get_sample_data(limit: int = 10) -> str:
-    """Get sample data from the digital_insights table.
+async def get_dataset_sample(dataset_id: int, table_name: str, limit: int = 10) -> str:
+    """Get sample data from a specific table in a dataset.
     
     Args:
-        limit: Number of sample rows to return (max 100)
+        dataset_id: ID of the dataset
+        table_name: Name of the table to sample from
+        limit: Number of sample rows (max 100)
     
     Returns:
         JSON string with sample data
     """
     limit = min(limit, 100)
-    result = execute_query(f"SELECT * FROM digital_insights LIMIT {limit}")
+    query = f"SELECT * FROM {table_name} LIMIT {limit}"
+    
+    result = execute_query_on_dataset(dataset_id, query)
     
     if result['success']:
-        import json
         return json.dumps({
+            'dataset_id': dataset_id,
+            'table_name': table_name,
             'sample_size': result['row_count'],
             'columns': result['columns'],
             'data': result['rows']
         }, indent=2, default=str)
     else:
-        return f"Error: {result['error']}"
+        return json.dumps({'error': result['error']})
 
-@mcp.tool()
-async def get_database_statistics() -> str:
-    """Get statistics about the digital_insights database.
-    
-    Returns platform distribution (CTV vs Mobile) with counts and average durations.
-    
-    Returns:
-        JSON string with database statistics
-    """
-    # Get total count
-    count_result = execute_query("SELECT COUNT(*) as total FROM digital_insights")
-    
-    # Get platform distribution
-    platform_result = execute_query("""
-        SELECT 
-            type as platform,
-            COUNT(*) as count,
-            ROUND(AVG(duration_sum)::numeric, 2) as avg_duration_seconds,
-            ROUND((COUNT(*) * 100.0 / SUM(COUNT(*)) OVER ())::numeric, 2) as percentage
-        FROM digital_insights
-        GROUP BY type
-        ORDER BY count DESC
-    """)
-    
-    if count_result['success'] and platform_result['success']:
-        import json
-        return json.dumps({
-            'total_rows': count_result['rows'][0]['total'] if count_result['rows'] else 0,
-            'platforms': platform_result['rows']
-        }, indent=2, default=str)
-    else:
-        error = count_result.get('error') or platform_result.get('error')
-        return f"Error: {error}"
-
-@mcp.tool()
-async def get_column_value_counts(column_name: str, limit: int = 20) -> str:
-    """Get frequency distribution for a specific column.
-    
-    Args:
-        column_name: Name of the column to analyze
-        limit: Maximum number of values to return (default 20)
-    
-    Returns:
-        JSON string with value counts and percentages
-    """
-    # Validate column name to prevent SQL injection
-    valid_columns = [
-        'type', 'cat', 'genre', 'age_bucket', 'gender', 'nccs_class',
-        'state_grp', 'day_of_week', 'population', 'app_name'
-    ]
-    
-    if column_name not in valid_columns:
-        return f"Error: Invalid column name. Valid columns are: {', '.join(valid_columns)}"
-    
-    query = f"""
-    SELECT 
-        {column_name} as value,
-        COUNT(*) as count,
-        ROUND((COUNT(*) * 100.0 / SUM(COUNT(*)) OVER ())::numeric, 2) as percentage
-    FROM digital_insights
-    WHERE {column_name} IS NOT NULL
-    GROUP BY {column_name}
-    ORDER BY count DESC
-    LIMIT {min(limit, 100)}
-    """
-    
-    result = execute_query(query)
-    
-    if result['success']:
-        import json
-        return json.dumps({
-            'column': column_name,
-            'unique_values': result['row_count'],
-            'distribution': result['rows']
-        }, indent=2, default=str)
-    else:
-        return f"Error: {result['error']}"
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MCP Analytics Server")
+    parser = argparse.ArgumentParser(description="MCP Analytics Server Phase 2")
     parser.add_argument("--port", type=int, default=int(os.getenv("PORT", 8000)), help="Port to listen on")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind to")
     args = parser.parse_args()
 
+    print(f"🚀 Starting MCP Analytics Server Phase 2")
+    print(f"   - MCP endpoint: http://{args.host}:{args.port}/mcp")
+    print(f"   - Multi-dataset support enabled")
+    print(f"   - AI-powered metadata available")
+    print()
+    
     # Start the server with HTTP transport (uses Streamable HTTP protocol internally)
     # This creates a /mcp endpoint that both ChatGPT and Claude Desktop can connect to
-    # FastMCP automatically uses the latest Streamable HTTP protocol
     mcp.run(transport="http", host=args.host, port=args.port)
 
