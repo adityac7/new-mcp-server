@@ -1,5 +1,6 @@
 """
 Background tasks for schema profiling and LLM metadata generation
+Enhanced with weight column detection and NCCS awareness
 """
 import os
 from typing import List, Dict
@@ -8,6 +9,7 @@ from app.workers.celery_app import celery_app
 from app.database import get_db_context, get_dataset_connection
 from app.models import Dataset, DatasetSchema, Metadata
 from app.encryption import get_encryption_manager
+from app.services.weighting_service import weighting_service
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -50,7 +52,10 @@ def profile_dataset_schema(dataset_id: int) -> Dict:
             tables = [row[0] for row in cur.fetchall()]
             
             total_columns = 0
-            
+            weight_column_detected = None
+            nccs_column_detected = None
+            all_columns = []
+
             # For each table, get schema
             for table_name in tables:
                 cur.execute("""
@@ -59,9 +64,23 @@ def profile_dataset_schema(dataset_id: int) -> Dict:
                     WHERE table_name = %s
                     ORDER BY ordinal_position
                 """, (table_name,))
-                
+
                 columns = cur.fetchall()
-                
+                table_column_names = [col[0] for col in columns]
+                all_columns.extend(table_column_names)
+
+                # Detect weight column in this table
+                if not weight_column_detected:
+                    detected_weight = weighting_service.detect_weight_column(table_column_names)
+                    if detected_weight:
+                        weight_column_detected = f"{table_name}.{detected_weight}"
+
+                # Detect NCCS column in this table
+                if not nccs_column_detected:
+                    detected_nccs = weighting_service.detect_nccs_column(table_column_names)
+                    if detected_nccs:
+                        nccs_column_detected = f"{table_name}.{detected_nccs}"
+
                 # Store schema information
                 for column_name, data_type, is_nullable in columns:
                     # Check if schema entry already exists
@@ -70,7 +89,7 @@ def profile_dataset_schema(dataset_id: int) -> Dict:
                         DatasetSchema.table_name == table_name,
                         DatasetSchema.column_name == column_name
                     ).first()
-                    
+
                     if not existing:
                         schema_entry = DatasetSchema(
                             dataset_id=dataset_id,
@@ -81,16 +100,27 @@ def profile_dataset_schema(dataset_id: int) -> Dict:
                         )
                         db.add(schema_entry)
                         total_columns += 1
-                
+
+                db.commit()
+
+            # Update dataset with detected columns
+            if weight_column_detected:
+                dataset.description = (dataset.description or "") + f"\n[Weight column: {weight_column_detected}]"
+                db.commit()
+
+            if nccs_column_detected:
+                dataset.description = (dataset.description or "") + f"\n[NCCS column: {nccs_column_detected}]"
                 db.commit()
             
             cur.close()
             conn.close()
-            
+
             return {
                 'success': True,
                 'tables_found': len(tables),
-                'columns_profiled': total_columns
+                'columns_profiled': total_columns,
+                'weight_column': weight_column_detected,
+                'nccs_column': nccs_column_detected
             }
             
         except Exception as e:
@@ -135,10 +165,24 @@ def generate_llm_metadata(dataset_id: int, table_name: str) -> Dict:
         
         # Generate metadata using OpenAI
         try:
-            prompt = f"""You are a data analyst. Given this database table schema, provide a SHORT (max 10 words) description for each column.
+            # Check if this is panel data with weighting
+            has_weight_hint = "Weight column" in (dataset.description or "")
+            has_nccs_hint = "NCCS column" in (dataset.description or "")
+
+            weight_context = ""
+            if has_weight_hint:
+                weight_context = "\n\n**IMPORTANT**: This is panel data with weighting. Include notes about weight columns and proper usage."
+
+            nccs_context = ""
+            if has_nccs_hint:
+                nccs_context = "\n**NCCS Merging**: A1→A, C/D/E→C/D/E (socioeconomic classes)"
+
+            prompt = f"""You are a data analyst specializing in consumer panel data. Given this database table schema, provide a SHORT (max 10 words) description for each column.
 
 Table: {table_name}
 Dataset: {dataset.name}
+{weight_context}
+{nccs_context}
 
 Columns:
 {chr(10).join([f"- {col['name']} ({col['type']})" for col in column_info])}
@@ -149,7 +193,7 @@ Respond in JSON format:
   ...
 }}
 
-Keep descriptions crisp and technical. Focus on what the data represents."""
+Keep descriptions crisp and technical. Focus on what the data represents. For weight columns, mention "Population weight" or similar."""
 
             response = client.chat.completions.create(
                 model="gpt-4.1-mini",
