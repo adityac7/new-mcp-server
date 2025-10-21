@@ -1,20 +1,164 @@
-# MCP Analytics Server - Cloud Deployment
+# MCP Analytics Server - Production-Grade Multi-Database Platform
 
-## Deployment to Render.com
+**A production-ready Model Context Protocol (MCP) server** that enables LLMs (ChatGPT, Claude, etc.) to query multiple PostgreSQL datasets with intelligent context loading, automated metadata generation, and weighted population analysis.
 
-This is the cloud-ready version of the MCP Analytics Server, optimized for deployment on Render.com's free tier.
+---
 
-## Features
+## 🎯 Overview
 
-- ✅ FastAPI-based HTTP API
-- ✅ PostgreSQL database support
-- ✅ 839K rows of digital insights data
-- ✅ 5 analytical endpoints
-- ✅ Security controls (query whitelisting, row limits)
-- ✅ CORS enabled for cross-origin access
-- ✅ Auto-scaling and health checks
+This platform allows **CMI (Consumer & Market Insights) teams** to:
 
-## Deployment Steps
+1. **Add multiple datasets** from Microsoft Fabric via PostgreSQL connection strings
+2. **Auto-generate metadata** using LLM (data dictionaries, use cases, quality checks)
+3. **Query data via natural language** through ChatGPT, Claude, or other MCP clients
+4. **Get weighted, persona-level insights** automatically applied
+5. **Track usage** across different tools and datasets
+
+---
+
+## ✨ Key Features
+
+### Phase 1 (✅ Completed)
+- ✅ Basic MCP server with 5 analytical tools
+- ✅ Single dataset support
+- ✅ Security controls (SELECT-only, row limits)
+- ✅ FastMCP protocol implementation
+- ✅ Deployed on Render.com
+
+### Phase 2 (🔄 In Development)
+- 🔄 Multi-dataset registry with encrypted connection strings
+- 🔄 Auto-generated metadata using GPT-4o-mini
+- 🔄 Background workers for schema profiling
+- 🔄 Hot-reload mechanism (add datasets without restart)
+- 🔄 Progressive context loading for token efficiency
+
+### Phase 3 (📋 Planned)
+- 📋 HTMX-based UI dashboard
+- 📋 Dataset onboarding wizard
+- 📋 Metadata review/edit interface
+- 📋 Query logs visualization
+
+### Phase 4 (📋 Planned)
+- 📋 Parallel query execution (up to 30 concurrent queries)
+- 📋 Connection pooling per dataset
+- 📋 Advanced weighting calculations
+- 📋 Performance optimizations
+
+### Phase 5 (📋 Planned)
+- 📋 Comprehensive query logging
+- 📋 Usage analytics by tool (ChatGPT vs Claude)
+- 📋 Performance metrics dashboard
+- 📋 Cost tracking
+
+---
+
+## 📚 Documentation
+
+- **[SIMPLIFIED_SETUP.md](SIMPLIFIED_SETUP.md)** ⭐ **START HERE** - No Docker, direct connection strings
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Developer onboarding guide
+- **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** - Detailed implementation specifications
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - High-level system architecture
+- **[API.md](API.md)** - REST API and MCP endpoint reference
+- **[RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md)** - Production deployment guide
+- **[database_schema.sql](database_schema.sql)** - Complete database schema
+- **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Complete package overview
+
+---
+
+## 🚀 Quick Start
+
+### Simple Setup (No Docker - Recommended)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/your-org/mcp-analytics-server.git
+cd mcp-analytics-server
+
+# 2. Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # macOS/Linux
+# venv\Scripts\activate   # Windows
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Set up environment
+cp .env.example .env
+# Edit .env and add:
+# - METADATA_DATABASE_URL (from your team)
+# - OPENAI_API_KEY
+
+# 5. Initialize database (one-time)
+psql "$METADATA_DATABASE_URL" -f database_schema.sql
+
+# 6. Run Phase 1
+python server.py
+
+# OR run Phase 2+ (when ready)
+uvicorn app.main:app --reload --port 8000
+```
+
+### Advanced: Docker Setup (Optional)
+
+If you prefer Docker:
+```bash
+docker-compose up -d
+```
+
+See **[SIMPLIFIED_SETUP.md](SIMPLIFIED_SETUP.md)** for detailed instructions.
+
+### Production Deployment (Render.com)
+
+See **[RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md)** for complete deployment instructions.
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│              MCP Analytics Server                    │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌────────────┐  │
+│  │  FastAPI    │  │  FastMCP    │  │   HTMX     │  │
+│  │  REST API   │  │  Protocol   │  │  UI        │  │
+│  └──────┬──────┘  └──────┬──────┘  └─────┬──────┘  │
+│         │                │               │          │
+│         └────────────────┴───────────────┘          │
+│                          │                          │
+│  ┌───────────────────────┴──────────────────┐       │
+│  │                                          │       │
+│  ▼                                          ▼       │
+│  Metadata DB                              Redis     │
+│  (Datasets, Logs, Schemas)         (Cache+Pub/Sub)  │
+│                                                      │
+│  Background Worker (Celery)                          │
+│  └─ Schema Profiling                                │
+│  └─ LLM Metadata Generation                         │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+           │                       │
+           ▼                       ▼
+      ChatGPT               Claude Desktop
+     (via MCP)               (via MCP)
+```
+
+---
+
+## 🔧 Technology Stack
+
+- **Backend**: Python 3.11+, FastAPI, FastMCP
+- **Database**: PostgreSQL 16 (metadata + user datasets via connection strings)
+- **Cache/Queue**: Redis 7 (optional, recommended for Phase 2+)
+- **Workers**: Celery (Phase 2+)
+- **LLM**: OpenAI GPT-4o-mini
+- **Frontend**: HTMX + Alpine.js + Tailwind CSS
+- **Deployment**: Render.com (no Docker required)
+
+---
+
+## Phase 1: Deployment Steps (Current)
 
 ### 1. Create Render Account
 
@@ -262,11 +406,162 @@ For issues:
 3. Test endpoints with curl
 4. Check database connection
 
+---
+
+## 📖 Development Phases
+
+| Phase | Status | Timeline | Description |
+|-------|--------|----------|-------------|
+| **Phase 1** | ✅ Complete | Week 1-2 | Basic MCP server with single dataset |
+| **Phase 2** | 🔄 In Progress | Week 3-4 | Multi-dataset + LLM metadata generation |
+| **Phase 3** | 📋 Planned | Week 5-6 | UI dashboard for dataset management |
+| **Phase 4** | 📋 Planned | Week 7-8 | Parallel query execution + optimization |
+| **Phase 5** | 📋 Planned | Week 9 | Query logs + monitoring dashboard |
+
+**See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed specifications.**
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest
+
+# With coverage
+pytest --cov=app --cov-report=html
+
+# Specific tests
+pytest tests/test_dataset_service.py -v
+```
+
+---
+
+## 🤝 Contributing
+
+### Development Workflow
+
+1. Create feature branch: `git checkout -b feature/my-feature`
+2. Make changes and test locally
+3. Run linting: `black app/ && ruff check app/`
+4. Run tests: `pytest`
+5. Commit: `git commit -m "Add feature"`
+6. Push and create PR
+
+### Code Quality
+
+```bash
+# Format code
+black app/
+isort app/
+
+# Lint
+ruff check app/
+
+# Type checking
+mypy app/
+```
+
+---
+
+## 📊 Key Concepts
+
+### Weighting Methodology
+All data represents a **sample population** where each user has a **weight**:
+- User weight 0.456 = represents 456 people in their demographic cell
+- Cell = age/gender/NCCS/townclass/state
+- **Always weigh users, NOT events**
+- Report at **weighted level** unless specified
+
+### Progressive Context Loading
+To optimize token usage:
+- **Level 0**: Global rules only (~500 tokens)
+- **Level 1**: Dataset summaries (~2000 tokens)
+- **Level 2**: Table schemas (~5000 tokens)
+- **Level 3**: Full schema + samples (~10000 tokens)
+
+### Hot-Reload Mechanism
+When a new dataset is approved:
+1. Status changes to `approved`
+2. Redis pub/sub notification sent
+3. MCP server reloads (no restart!)
+4. LLM clients see new dataset immediately
+
+---
+
+## 🔐 Security
+
+- Connection strings encrypted at rest (Fernet)
+- SQL injection protection (query validation)
+- SELECT-only queries enforced
+- Row limits (5 for raw data, 1000 for aggregated)
+- Environment-based secrets management
+
+---
+
+## 📈 Scaling
+
+### Free Tier (Current)
+- **Cost**: $0/month
+- **Limitations**: Cold starts, 1GB storage, 90-day retention
+- **Best for**: 5-10 users, development/testing
+
+### Starter Tier (Recommended for Production)
+- **Cost**: $28/month
+- **Benefits**: Always-on, 10GB storage, unlimited retention
+- **Best for**: 10-100 users
+
+### Enterprise (Future)
+- **Cost**: Custom
+- **Benefits**: Dedicated resources, autoscaling, SLA
+- **Best for**: 100+ users, mission-critical
+- **Migration**: Simply update connection strings in .env (no code changes)
+
+**See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for scaling guide.**
+
+---
+
+## 📞 Support
+
+- **Documentation**: See [docs](docs/) folder
+- **Issues**: GitHub Issues
+- **API Docs**: `https://your-app.onrender.com/docs`
+
+---
+
+## 📝 License
+
+Proprietary - Internal Use Only
+
+---
+
+## 🎉 Acknowledgments
+
+Built with:
+- [FastAPI](https://fastapi.tiangolo.com)
+- [FastMCP](https://github.com/jlowin/fastmcp)
+- [Model Context Protocol](https://modelcontextprotocol.io)
+- [OpenAI](https://openai.com)
+
+---
+
 ## Next Steps
 
-1. Deploy to Render
-2. Test all endpoints
-3. Configure ChatGPT Desktop
-4. Add authentication (optional)
-5. Set up monitoring (optional)
+### For Developers
+1. Read [GETTING_STARTED.md](GETTING_STARTED.md)
+2. Set up local environment
+3. Review [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+4. Start implementing Phase 2
+
+### For Product Managers
+1. Review [ARCHITECTURE.md](ARCHITECTURE.md)
+2. Check implementation timeline
+3. Prepare test datasets
+4. Define success metrics
+
+### For DevOps
+1. Review [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md)
+2. Get PostgreSQL connection strings from data team
+3. Set up CI/CD pipeline
+4. Configure monitoring
 

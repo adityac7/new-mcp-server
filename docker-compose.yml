@@ -1,0 +1,210 @@
+version: '3.8'
+
+# =====================================================
+# MCP Analytics Server - Local Development Stack
+# =====================================================
+# Usage:
+#   docker-compose up -d       # Start all services
+#   docker-compose logs -f app # View application logs
+#   docker-compose down        # Stop all services
+# =====================================================
+
+services:
+  # ===================================================
+  # Metadata PostgreSQL Database
+  # ===================================================
+  metadata-db:
+    image: postgres:16-alpine
+    container_name: mcp-metadata-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: metadata_db
+      POSTGRES_USER: mcp_admin
+      POSTGRES_PASSWORD: dev_password_123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"  # Avoid conflict with local Postgres on 5432
+    volumes:
+      - metadata_db_data:/var/lib/postgresql/data
+      - ./database_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp_admin -d metadata_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mcp-network
+
+  # ===================================================
+  # Redis (Cache + Pub/Sub)
+  # ===================================================
+  redis:
+    image: redis:7-alpine
+    container_name: mcp-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass dev_redis_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mcp-network
+
+  # ===================================================
+  # FastAPI Application (MCP Server + REST API)
+  # ===================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-app
+    restart: unless-stopped
+    environment:
+      # Database
+      METADATA_DATABASE_URL: postgresql://mcp_admin:dev_password_123@metadata-db:5432/metadata_db
+
+      # Redis
+      REDIS_URL: redis://:dev_redis_password@redis:6379/0
+
+      # Security
+      ENCRYPTION_KEY: "your-generated-fernet-key-here"  # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      SECRET_KEY: "dev-secret-key-change-in-production"
+
+      # LLM
+      OPENAI_API_KEY: ${OPENAI_API_KEY}  # From .env file
+
+      # App Config
+      ENVIRONMENT: development
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+    depends_on:
+      metadata-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for services...' &&
+        sleep 5 &&
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting application...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    networks:
+      - mcp-network
+
+  # ===================================================
+  # Celery Worker (Background Tasks)
+  # ===================================================
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-celery-worker
+    restart: unless-stopped
+    environment:
+      METADATA_DATABASE_URL: postgresql://mcp_admin:dev_password_123@metadata-db:5432/metadata_db
+      REDIS_URL: redis://:dev_redis_password@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ENCRYPTION_KEY: "your-generated-fernet-key-here"
+      ENVIRONMENT: development
+    volumes:
+      - ./app:/app/app
+    depends_on:
+      - metadata-db
+      - redis
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
+    networks:
+      - mcp-network
+
+  # ===================================================
+  # Celery Beat (Scheduled Tasks)
+  # ===================================================
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-celery-beat
+    restart: unless-stopped
+    environment:
+      METADATA_DATABASE_URL: postgresql://mcp_admin:dev_password_123@metadata-db:5432/metadata_db
+      REDIS_URL: redis://:dev_redis_password@redis:6379/0
+      ENCRYPTION_KEY: "your-generated-fernet-key-here"
+    volumes:
+      - ./app:/app/app
+    depends_on:
+      - metadata-db
+      - redis
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    networks:
+      - mcp-network
+
+  # ===================================================
+  # PgAdmin (Optional - Database Management UI)
+  # ===================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: mcp-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@mcp.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - metadata-db
+    networks:
+      - mcp-network
+    profiles:
+      - tools  # Only start with: docker-compose --profile tools up
+
+  # ===================================================
+  # Redis Commander (Optional - Redis Management UI)
+  # ===================================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: mcp-redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:dev_redis_password
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - mcp-network
+    profiles:
+      - tools
+
+# =====================================================
+# Networks
+# =====================================================
+networks:
+  mcp-network:
+    driver: bridge
+
+# =====================================================
+# Volumes (Persistent Data)
+# =====================================================
+volumes:
+  metadata_db_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
