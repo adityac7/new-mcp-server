@@ -48,6 +48,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY ./app /app/app
 COPY ./alembic /app/alembic
 COPY ./alembic.ini /app/alembic.ini
+COPY ./server.py /app/server.py
+COPY ./.env.example /app/.env.example
 
 # Create non-root user for security
 RUN useradd -m -u 1000 mcpuser && \
@@ -67,5 +69,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Default command (can be overridden)
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+# Default command - Run MCP server
+CMD ["sh", "-c", "python server.py --host 0.0.0.0 --port ${PORT}"]
