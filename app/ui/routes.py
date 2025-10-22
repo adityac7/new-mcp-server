@@ -120,14 +120,19 @@ async def create_dataset(
         name=name,
         description=description,
         connection_string_encrypted=encrypted_conn_str,
-        is_active=False  # Will be activated after profiling
+        is_active=True  # Mark as active immediately for local testing
     )
     db.add(dataset)
     db.commit()
     db.refresh(dataset)
 
-    # Trigger background profiling
-    process_new_dataset.delay(dataset.id)
+    # Trigger background profiling (skip if Redis/Celery not available)
+    try:
+        process_new_dataset.delay(dataset.id)
+    except Exception as e:
+        # If Celery/Redis not available, dataset is still created but without profiling
+        print(f"Warning: Background profiling not available: {e}")
+        pass
 
     return RedirectResponse(url="/ui/datasets", status_code=303)
 
@@ -161,7 +166,7 @@ async def dataset_detail(
             "name": record.column_name,
             "type": record.data_type,
             "nullable": record.is_nullable,
-            "description": record.llm_description
+            "description": None  # LLM descriptions stored in separate Metadata table
         })
         total_columns += 1
 

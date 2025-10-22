@@ -13,15 +13,16 @@ Base = declarative_base()
 class Dataset(Base):
     """Dataset registry with encrypted connection strings"""
     __tablename__ = "datasets"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), unique=True, nullable=False, index=True)
     description = Column(Text, nullable=True)
     connection_string_encrypted = Column(Text, nullable=False)
+    metadata_text = Column(Text, nullable=True)  # Full schema metadata as markdown/text
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    
+
     # Relationships
     schemas = relationship("DatasetSchema", back_populates="dataset", cascade="all, delete-orphan")
     metadata_entries = relationship("Metadata", back_populates="dataset", cascade="all, delete-orphan")
