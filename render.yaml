@@ -1,24 +1,21 @@
 services:
-  # MCP Server
+  # MCP Server with integrated UI
   - type: web
-    name: mcp-analytics-server
+    name: new-mcp-server
     runtime: python
     plan: free
     region: singapore
     buildCommand: pip install -r requirements.txt
-    startCommand: python server.py --port $PORT
+    startCommand: python server.py --port $PORT --host 0.0.0.0
     envVars:
       - key: DATABASE_URL
         sync: false
 
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: mcp-analytics-redis
-          property: connectionString
+        value: ""  # Optional - hot-reload disabled if not set
 
       - key: ENCRYPTION_KEY
-        sync: false  # Set manually - MUST be the same across all services
+        sync: false  # Set manually
 
       - key: OPENAI_API_KEY
         sync: false
@@ -31,48 +28,4 @@ services:
 
       - key: MAX_ROWS
         value: "1000"
-
-  # UI Dashboard Service
-  - type: web
-    name: mcp-analytics-ui
-    runtime: python
-    plan: free
-    region: singapore
-    branch: main
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: mcp-analytics-redis
-          property: connectionString
-
-      - key: ENCRYPTION_KEY
-        sync: false  # Set manually - MUST be the same as MCP server
-
-      - key: SECRET_KEY
-        generateValue: true
-
-      - key: ENVIRONMENT
-        value: production
-
-      - key: LOG_LEVEL
-        value: INFO
-
-      - key: MAX_ROWS
-        value: "1000"
-
-      - key: OPENAI_API_KEY
-        sync: false
-
-databases:
-  # Free Redis Instance (25MB free tier)
-  - name: mcp-analytics-redis
-    plan: free
-    region: singapore
-    maxmemoryPolicy: allkeys-lru
 
