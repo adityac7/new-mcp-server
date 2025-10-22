@@ -49,18 +49,72 @@ formatter = ResponseFormatter()
 
 
 def get_active_datasets() -> List[Dict]:
-    """Get all active datasets"""
+    """Get all active datasets with rich information"""
     db = next(get_db())
     try:
         datasets = db.query(Dataset).filter(Dataset.is_active == True).all()
-        return [
-            {
+        result = []
+        
+        for ds in datasets:
+            # Get row count from the dataset
+            row_count = None
+            table_count = 0
+            column_count = 0
+            has_metadata = False
+            
+            try:
+                # Get connection and query for stats
+                encryption_manager = get_encryption_manager()
+                connection_string = encryption_manager.decrypt(ds.connection_string_encrypted)
+                if connection_string.startswith('postgres://'):
+                    connection_string = connection_string.replace('postgres://', 'postgresql://', 1)
+                
+                conn = psycopg2.connect(connection_string)
+                cur = conn.cursor()
+                
+                # Get table count
+                cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                """)
+                table_count = cur.fetchone()[0]
+                
+                # Get row count from main table (assuming table name = dataset name)
+                try:
+                    cur.execute(f"SELECT COUNT(*) FROM {ds.name}")
+                    row_count = cur.fetchone()[0]
+                except:
+                    pass  # Table might not exist or have different name
+                
+                cur.close()
+                conn.close()
+            except:
+                pass  # Don't fail if we can't get stats
+            
+            # Get schema info
+            schema_entries = db.query(DatasetSchema).filter(
+                DatasetSchema.dataset_id == ds.id
+            ).all()
+            column_count = len(schema_entries)
+            
+            # Check if metadata exists
+            metadata_entries = db.query(Metadata).filter(
+                Metadata.dataset_id == ds.id
+            ).first()
+            has_metadata = metadata_entries is not None or ds.metadata_text is not None
+            
+            result.append({
                 'id': ds.id,
                 'name': ds.name,
-                'description': ds.description
-            }
-            for ds in datasets
-        ]
+                'description': ds.description,
+                'row_count': row_count,
+                'table_count': table_count,
+                'column_count': column_count,
+                'has_metadata': has_metadata,
+                'created_at': ds.created_at.isoformat() if ds.created_at else None
+            })
+        
+        return result
     finally:
         db.close()
 

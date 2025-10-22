@@ -13,27 +13,51 @@ class ResponseFormatter:
     @staticmethod
     def format_dataset_list(datasets: List[Dict[str, Any]]) -> str:
         """
-        Format dataset list as Markdown table
+        Format dataset list as Markdown table with rich information
 
         Args:
-            datasets: List of dataset dicts with id, name, description
+            datasets: List of dataset dicts with id, name, description, stats, metadata status
 
         Returns:
-            Markdown formatted string
+            Markdown formatted string optimized for executive decision-making
         """
         if not datasets:
             return "_No datasets available._"
 
-        md = "# Available Datasets\n\n"
+        md = "# 📊 Available Datasets\n\n"
         md += f"**Total Datasets**: {len(datasets)}\n\n"
-        md += "| ID | Name | Description |\n"
-        md += "|---|---|---|\n"
+        
+        # Add executive-level context
+        md += "## Overview\n\n"
+        md += "These datasets contain analytics data for strategic decision-making. "
+        md += "Each dataset includes CTV, mobile, and digital platform metrics for media planning and ecommerce strategy.\n\n"
+        
+        md += "| ID | Dataset Name | Records | Tables | Metadata | Description |\n"
+        md += "|:---:|---|---:|:---:|:---:|---|\n"
 
         for ds in datasets:
-            desc = ds.get('description', 'No description')[:100]  # Truncate long descriptions
-            md += f"| {ds['id']} | {ds['name']} | {desc} |\n"
+            name = ds.get('name', 'Unknown')
+            desc = ds.get('description', 'No description')[:80]
+            row_count = f"{ds.get('row_count', 0):,}" if ds.get('row_count') else "N/A"
+            table_count = ds.get('table_count', 0)
+            has_metadata = "✅" if ds.get('has_metadata') else "⚠️"
+            
+            md += f"| {ds['id']} | **{name}** | {row_count} | {table_count} | {has_metadata} | {desc} |\n"
 
-        md += "\n**Usage**: Use `get_dataset_schema(dataset_id)` to see table details.\n"
+        md += "\n## Legend\n\n"
+        md += "- **Metadata**: ✅ = AI-generated descriptions available, ⚠️ = Schema only\n"
+        md += "- **Records**: Total number of data points in primary table\n\n"
+        
+        md += "## Next Steps\n\n"
+        md += "1. **Identify relevant dataset(s)** based on your analysis needs\n"
+        md += "2. **Get detailed schema**: Use `get_dataset_schema(dataset_id)` for column details\n"
+        md += "3. **Review sample data**: Use `get_dataset_sample(dataset_id, table_name)` to see actual data\n"
+        md += "4. **Execute analysis**: Use `query_dataset()` or `execute_multi_query()` for insights\n\n"
+        
+        md += "---\n\n"
+        md += "**🎯 Analysis Guidelines**: Your audience consists of senior brand managers and executives. "
+        md += "Provide PhD-level analysis with actionable insights. Use tables and visualizations. "
+        md += "Focus on strategic implications for media spend allocation and ecommerce planning.\n"
 
         return md
 
@@ -77,6 +101,17 @@ class ResponseFormatter:
 
             md += "\n"
 
+        md += "---\n\n"
+        md += "## Analysis Guidelines\n\n"
+        md += "**🎯 Audience**: Senior brand managers and executives at large companies\n\n"
+        md += "**📊 Analysis Level**: PhD-level insights with actionable recommendations\n\n"
+        md += "**✅ Best Practices**:\n"
+        md += "- Use **tables and visualizations** to present findings\n"
+        md += "- Focus on **strategic implications** for media spend allocation\n"
+        md += "- Provide **ecommerce strategy recommendations** based on data\n"
+        md += "- Be **concise but analytical** - less verbose, more insights\n"
+        md += "- Include **comparative analysis** and trend identification\n"
+        md += "- Highlight **actionable takeaways** for decision-makers\n\n"
         md += "---\n\n"
         md += f"**Usage**: Use `query_dataset({dataset_id}, \"SELECT ...\")` to query this dataset.\n"
 
@@ -126,6 +161,11 @@ class ResponseFormatter:
 
         # Format as table
         md += ResponseFormatter._format_table(rows, columns)
+        
+        # Add analysis reminder
+        md += "\n---\n\n"
+        md += "**💡 Analysis Reminder**: Provide PhD-level insights for senior executives. "
+        md += "Focus on strategic implications, use tables/graphs, and deliver actionable recommendations for media spend and ecommerce strategy.\n"
 
         return md
 
