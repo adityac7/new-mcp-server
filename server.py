@@ -330,12 +330,18 @@ Run: `python3 generate_metadata.py {dataset_id}` to generate schema metadata.
 async def query_dataset(dataset_id: int, query: str, apply_weights: bool = True) -> str:
     """
     Execute a SQL SELECT query on a specific dataset with automatic optimizations.
+    
+    🚀 **For multiple queries: Call this tool multiple times in parallel!**
+    Each call executes independently and returns immediately when done.
+    Fast queries won't wait for slow ones.
 
-    Only SELECT statements are allowed.
+    Features:
+    - Only SELECT statements allowed
     - Raw data queries (no GROUP BY): Limited to 5 rows
     - Aggregated queries (with GROUP BY): Up to 1000 rows
     - Automatic NCCS merging applied (A1→A, C/D/E→C/D/E)
     - Weighting applied if weight column detected
+    - Parallel execution when called multiple times
 
     Args:
         dataset_id: ID of the dataset to query
@@ -344,6 +350,12 @@ async def query_dataset(dataset_id: int, query: str, apply_weights: bool = True)
 
     Returns:
         Markdown formatted results table with metadata
+        
+    Example - Multiple parallel queries:
+        # These execute in parallel automatically:
+        query_dataset(1, "SELECT gender, SUM(weights) FROM digital_insights GROUP BY gender")
+        query_dataset(1, "SELECT age_bucket, SUM(weights) FROM digital_insights GROUP BY age_bucket")
+        query_dataset(1, "SELECT state_grp, SUM(weights) FROM digital_insights GROUP BY state_grp")
     """
     # Execute query with all optimizations
     result = execute_query_on_dataset(
@@ -450,40 +462,40 @@ async def get_dataset_sample(dataset_id: int, table_name: str, limit: int = 10) 
 @mcp.tool()
 async def execute_multi_query(queries: List[Dict[str, Any]], apply_weights: bool = True) -> str:
     """
-    Execute multiple queries in parallel across datasets.
-
-    **SINGLE PERMISSION APPROVAL** for all queries - user approves once, all execute!
-
-    Benefits:
-    - ⚡ 5-6x faster (parallel execution)
-    - ✅ One approval for all queries
-    - 📊 Combined Markdown response
-    - 🎯 Up to 30 queries supported
-
-    Args:
-        queries: List of query objects with structure:
-            [
-                {
-                    "dataset_id": 1,
-                    "query": "SELECT gender, COUNT(*) FROM users GROUP BY gender",
-                    "label": "Gender Distribution"  # Optional, for clarity
-                },
-                {
-                    "dataset_id": 1,
-                    "query": "SELECT age, COUNT(*) FROM users GROUP BY age",
-                    "label": "Age Distribution"
-                }
-            ]
-        apply_weights: Apply automatic weighting (default: True)
-
-    Returns:
-        Markdown formatted results for all queries combined
-
-    Example:
-        queries = [
-            {"dataset_id": 1, "query": "SELECT gender, COUNT(*) as count FROM users GROUP BY gender", "label": "Gender"},
-            {"dataset_id": 1, "query": "SELECT city, COUNT(*) as count FROM users GROUP BY city LIMIT 10", "label": "Top Cities"}
-        ]
+    ⚠️ **DEPRECATED** - Do not use this tool.
+    
+    **Use `query_dataset()` multiple times instead for true parallel execution.**
+    
+    Why deprecated:
+    - This tool waits for ALL queries to complete before returning
+    - Slow queries block fast queries
+    - Single large response instead of streaming results
+    - Failed queries can block successful ones
+    
+    **Recommended approach:**
+    Instead of calling execute_multi_query() once, call query_dataset() multiple times:
+    
+    ✅ GOOD (Parallel, streaming responses):
+    ```
+    # Call these separately - they execute in parallel automatically
+    query_dataset(dataset_id=1, query="SELECT gender, SUM(weights) FROM digital_insights GROUP BY gender")
+    query_dataset(dataset_id=1, query="SELECT age_bucket, SUM(weights) FROM digital_insights GROUP BY age_bucket")
+    query_dataset(dataset_id=1, query="SELECT app_name, SUM(weights) FROM digital_insights GROUP BY app_name LIMIT 10")
+    ```
+    
+    ❌ BAD (Blocks until all complete):
+    ```
+    execute_multi_query(queries=[...])  # Don't use this
+    ```
+    
+    Benefits of multiple query_dataset() calls:
+    - Each query returns immediately when done
+    - Fast queries don't wait for slow ones
+    - Failed queries don't block successful ones
+    - Better user experience with streaming results
+    - Natural parallelism handled by the LLM client
+    
+    This tool is kept for backward compatibility but will be removed in a future version.
     """
     start_time = time.time()
 
