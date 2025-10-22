@@ -113,6 +113,14 @@ class ResponseFormatter:
         md += "- Include **comparative analysis** and trend identification\n"
         md += "- Highlight **actionable takeaways** for decision-makers\n\n"
         md += "---\n\n"
+        md += "## 🔧 PostgreSQL Query Tips\n\n"
+        md += "**Important**: This database uses PostgreSQL. Common function corrections:\n\n"
+        md += "- **ROUND()**: Always cast to numeric → `ROUND(column::numeric, 2)`\n"
+        md += "- **Date math**: Use intervals → `date_column + INTERVAL '7 days'`\n"
+        md += "- **NULL handling**: Use `COALESCE(column, 0)` instead of `ISNULL()`\n"
+        md += "- **String aggregation**: Use `STRING_AGG(column, ', ')` instead of `GROUP_CONCAT()`\n"
+        md += "- **Conditionals**: Use `CASE WHEN ... THEN ... ELSE ... END` instead of `IIF()`\n\n"
+        md += "---\n\n"
         md += f"**Usage**: Use `query_dataset({dataset_id}, \"SELECT ...\")` to query this dataset.\n"
 
         return md
@@ -162,10 +170,11 @@ class ResponseFormatter:
         # Format as table
         md += ResponseFormatter._format_table(rows, columns)
         
-        # Add analysis reminder
+        # Add analysis reminder and SQL tips
         md += "\n---\n\n"
         md += "**💡 Analysis Reminder**: Provide PhD-level insights for senior executives. "
-        md += "Focus on strategic implications, use tables/graphs, and deliver actionable recommendations for media spend and ecommerce strategy.\n"
+        md += "Focus on strategic implications, use tables/graphs, and deliver actionable recommendations for media spend and ecommerce strategy.\n\n"
+        md += "**🔧 PostgreSQL Tips**: Use `ROUND(value::numeric, 2)` for rounding, `COALESCE(col, 0)` for NULL handling, `STRING_AGG()` for concatenation.\n"
 
         return md
 
