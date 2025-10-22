@@ -132,7 +132,6 @@ async def create_dataset(
     except Exception as e:
         # If Celery/Redis not available, dataset is still created but without profiling
         print(f"Warning: Background profiling not available: {e}")
-        pass
 
     return RedirectResponse(url="/ui/datasets", status_code=303)
 
@@ -276,8 +275,8 @@ async def query_logs(
     # Apply filters
     if dataset_id:
         query = query.filter(QueryLog.dataset_id == dataset_id)
-    if client_tool:
-        query = query.filter(QueryLog.client_tool == client_tool)
+    # Note: client_tool filtering removed - tool is stored in client_info JSON field
+    # To implement: would need JSON query like: QueryLog.client_info['tool'].astext == client_tool
     if status:
         if status == "success":
             query = query.filter(QueryLog.success == True)

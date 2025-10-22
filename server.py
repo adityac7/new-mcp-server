@@ -602,7 +602,7 @@ if __name__ == "__main__":
     print()
     print(f"📊 Features:")
     print(f"   ✓ Multi-dataset support")
-    print(f"   ✓ AI-powered metadata (GPT-4.1-mini)")
+    print(f"   ✓ AI-powered metadata (gpt-4o-mini)")
     print(f"   ✓ Markdown responses (50% token savings)")
     print(f"   ✓ Progressive context loading (4 levels)")
     print(f"   ✓ Automatic weighting & NCCS merging")
