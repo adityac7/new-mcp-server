@@ -102,24 +102,24 @@ class ResponseFormatter:
             md += "\n"
 
         md += "---\n\n"
-        md += "## Analysis Guidelines\n\n"
-        md += "**🎯 Audience**: Senior brand managers and executives at large companies\n\n"
-        md += "**📊 Analysis Level**: PhD-level insights with actionable recommendations\n\n"
-        md += "**✅ Best Practices**:\n"
-        md += "- Use **tables and visualizations** to present findings\n"
-        md += "- Focus on **strategic implications** for media spend allocation\n"
-        md += "- Provide **ecommerce strategy recommendations** based on data\n"
-        md += "- Be **concise but analytical** - less verbose, more insights\n"
-        md += "- Include **comparative analysis** and trend identification\n"
-        md += "- Highlight **actionable takeaways** for decision-makers\n\n"
-        md += "---\n\n"
-        md += "## 🔧 PostgreSQL Query Tips\n\n"
-        md += "**Important**: This database uses PostgreSQL. Common function corrections:\n\n"
-        md += "- **ROUND()**: Always cast to numeric → `ROUND(column::numeric, 2)`\n"
-        md += "- **Date math**: Use intervals → `date_column + INTERVAL '7 days'`\n"
-        md += "- **NULL handling**: Use `COALESCE(column, 0)` instead of `ISNULL()`\n"
-        md += "- **String aggregation**: Use `STRING_AGG(column, ', ')` instead of `GROUP_CONCAT()`\n"
-        md += "- **Conditionals**: Use `CASE WHEN ... THEN ... ELSE ... END` instead of `IIF()`\n\n"
+        md += "## 📋 Analysis & Query Guidelines\n\n"
+        md += "**User Persona**: CMI team for large brands - provide insights like a seasoned brand manager\n\n"
+        md += "**Critical Rules**:\n"
+        md += "1. **Weighting**: ALWAYS use weighted aggregation (`SUM(weights)`) - weight users, not events\n"
+        md += "2. **Raw Data**: Limit to 5 rows maximum - use aggregation (GROUP BY) for larger datasets\n"
+        md += "3. **Panel Data**: Report for personas (e.g., \"average per female user/day\", not absolute totals)\n"
+        md += "4. **NCCS**: A+A1→A, C/D/E→C/D/E (auto-merged by system)\n"
+        md += "5. **Context**: Keep queries specific to avoid token overflow\n\n"
+        md += "**Response Style**:\n"
+        md += "- Detailed, actionable insights for brand managers\n"
+        md += "- Focus on media planning and ecommerce strategy\n"
+        md += "- Use tables/visualizations, less verbose, more analysis\n"
+        md += "- Provide comparative analysis and trends\n\n"
+        md += "**PostgreSQL Syntax**:\n"
+        md += "- ROUND: `ROUND(value::numeric, 2)`\n"
+        md += "- NULL: `COALESCE(column, 0)`\n"
+        md += "- String agg: `STRING_AGG(column, ', ')`\n"
+        md += "- Date math: `date + INTERVAL '7 days'`\n\n"
         md += "---\n\n"
         md += f"**Usage**: Use `query_dataset({dataset_id}, \"SELECT ...\")` to query this dataset.\n"
 
@@ -170,11 +170,7 @@ class ResponseFormatter:
         # Format as table
         md += ResponseFormatter._format_table(rows, columns)
         
-        # Add analysis reminder and SQL tips
-        md += "\n---\n\n"
-        md += "**💡 Analysis Reminder**: Provide PhD-level insights for senior executives. "
-        md += "Focus on strategic implications, use tables/graphs, and deliver actionable recommendations for media spend and ecommerce strategy.\n\n"
-        md += "**🔧 PostgreSQL Tips**: Use `ROUND(value::numeric, 2)` for rounding, `COALESCE(col, 0)` for NULL handling, `STRING_AGG()` for concatenation.\n"
+        # No repetitive reminders - keep response clean
 
         return md
 

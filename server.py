@@ -395,14 +395,14 @@ async def query_dataset(dataset_id: int, query: str, apply_weights: bool = True)
         row_limit_applied=result.get('row_limit_applied', False)
     )
 
-    # Add weighting info if applicable
-    if result.get('weight_column'):
-        md += f"\n**Weight Column Detected**: `{result['weight_column']}`\n"
-        md += "_Include weight column in GROUP BY for accurate population estimates._\n"
-
-    # Add NCCS info if applicable
-    if result.get('nccs_column'):
-        md += f"\n**NCCS Merging Applied**: {result['nccs_column']} (A1→A, C/D/E→C/D/E)\n"
+    # Add minimal metadata if applicable
+    if result.get('weight_column') or result.get('nccs_column'):
+        md += "\n---\n\n"
+        if result.get('weight_column'):
+            md += f"⚖️ Weighted: `{result['weight_column']}` | "
+        if result.get('nccs_column'):
+            md += f"🔄 NCCS merged: {result['nccs_column']}"
+        md += "\n"
 
     return md
 
