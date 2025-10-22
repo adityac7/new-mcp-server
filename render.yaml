@@ -1,4 +1,5 @@
 services:
+  # Existing MCP Server (DO NOT MODIFY)
   - type: web
     name: mcp-analytics-server
     runtime: python
@@ -9,3 +10,49 @@ services:
       - key: DATABASE_URL
         sync: false
 
+  # NEW: UI Dashboard Service
+  - type: web
+    name: mcp-analytics-ui
+    runtime: python
+    plan: free  # Start with free, upgrade if needed
+    region: singapore
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    envVars:
+      # Use the same DATABASE_URL as MCP server
+      - key: DATABASE_URL
+        sync: false  # You'll set this manually to match MCP server
+
+      # Reference the new Redis instance
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: mcp-analytics-redis
+          property: connectionString
+
+      - key: ENCRYPTION_KEY
+        generateValue: true  # Auto-generate secure Fernet key
+
+      - key: SECRET_KEY
+        generateValue: true
+
+      - key: ENVIRONMENT
+        value: production
+
+      - key: LOG_LEVEL
+        value: INFO
+
+      - key: MAX_ROWS
+        value: "1000"
+
+      # Optional: OpenAI API key
+      - key: OPENAI_API_KEY
+        sync: false
+
+databases:
+  # NEW: Free Redis Instance (25MB free tier)
+  - name: mcp-analytics-redis
+    plan: free
+    region: singapore
+    maxmemoryPolicy: allkeys-lru
