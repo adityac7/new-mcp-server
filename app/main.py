@@ -7,6 +7,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,10 @@ app = FastAPI(
     description="Multi-dataset analytics platform with AI-powered metadata",
     version="2.0.0"
 )
+
+# Import UI routes
+from app.ui.routes import router as ui_router
+app.include_router(ui_router)
 
 # CORS middleware
 app.add_middleware(
