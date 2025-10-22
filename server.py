@@ -573,7 +573,6 @@ async def listen_for_dataset_changes():
         print("   Continuing without hot-reload...")
 
 
-@mcp.on_event("startup")
 async def startup_event():
     """
     Startup event handler
@@ -602,7 +601,7 @@ if __name__ == "__main__":
     print()
     print(f"📊 Features:")
     print(f"   ✓ Multi-dataset support")
-    print(f"   ✓ AI-powered metadata (gpt-4o-mini)")
+    print(f"   ✓ AI-powered metadata (gpt-4.1-mini)")
     print(f"   ✓ Markdown responses (50% token savings)")
     print(f"   ✓ Progressive context loading (4 levels)")
     print(f"   ✓ Automatic weighting & NCCS merging")
@@ -619,6 +618,11 @@ if __name__ == "__main__":
     print(f"   6. get_context(level=0-3, dataset_id=None)")
     print()
     print(f"💡 Pro Tip: Use execute_multi_query() for multiple queries = ONE approval!")
+    print()
+
+    # Initialize server (dataset cache + hot-reload listener)
+    print("Initializing server...")
+    asyncio.run(startup_event())
 
     # Start the server with HTTP transport (uses Streamable HTTP protocol internally)
     # This creates a /mcp endpoint that both ChatGPT and Claude Desktop can connect to
