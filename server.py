@@ -107,6 +107,8 @@ def get_active_datasets() -> List[Dict]:
                 'id': ds.id,
                 'name': ds.name,
                 'description': ds.description,
+                'date_range': ds.date_range,
+                'date_column': ds.date_column,
                 'row_count': row_count,
                 'table_count': table_count,
                 'column_count': column_count,

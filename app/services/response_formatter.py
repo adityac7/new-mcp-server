@@ -32,17 +32,17 @@ class ResponseFormatter:
         md += "These datasets contain analytics data for strategic decision-making. "
         md += "Each dataset includes CTV, mobile, and digital platform metrics for media planning and ecommerce strategy.\n\n"
         
-        md += "| ID | Dataset Name | Records | Tables | Metadata | Description |\n"
-        md += "|:---:|---|---:|:---:|:---:|---|\n"
+        md += "| ID | Dataset Name | Date Range | Records | Metadata | Description |\n"
+        md += "|:---:|---|:---:|---:|:---:|---|\n"
 
         for ds in datasets:
             name = ds.get('name', 'Unknown')
-            desc = ds.get('description', 'No description')[:80]
+            desc = ds.get('description', 'No description')[:60]
+            date_range = ds.get('date_range', 'N/A')
             row_count = f"{ds.get('row_count', 0):,}" if ds.get('row_count') else "N/A"
-            table_count = ds.get('table_count', 0)
             has_metadata = "✅" if ds.get('has_metadata') else "⚠️"
             
-            md += f"| {ds['id']} | **{name}** | {row_count} | {table_count} | {has_metadata} | {desc} |\n"
+            md += f"| {ds['id']} | **{name}** | {date_range} | {row_count} | {has_metadata} | {desc} |\n"
 
         md += "\n## Legend\n\n"
         md += "- **Metadata**: ✅ = AI-generated descriptions available, ⚠️ = Schema only\n"
@@ -106,10 +106,15 @@ class ResponseFormatter:
         md += "**User Persona**: CMI team for large brands - provide insights like a seasoned brand manager\n\n"
         md += "**Critical Rules**:\n"
         md += "1. **Weighting**: ALWAYS use weighted aggregation (`SUM(weights)`) - weight users, not events\n"
-        md += "2. **Raw Data**: Limit to 5 rows maximum - use aggregation (GROUP BY) for larger datasets\n"
-        md += "3. **Panel Data**: Report for personas (e.g., \"average per female user/day\", not absolute totals)\n"
-        md += "4. **NCCS**: A+A1→A, C/D/E→C/D/E (auto-merged by system)\n"
-        md += "5. **Context**: Keep queries specific to avoid token overflow\n\n"
+        md += "   - **Weight Scale**: 1 weight = 1,000 users (e.g., weight 0.456 = 456 users)\n"
+        md += "   - **Cell Definition**: Age × Gender × NCCS × Townclass × State\n"
+        md += "2. **Time Period**: If multiple months available, analyze **last month + last 3 months** by default\n"
+        md += "   - Show **MoM (Month-over-Month) trends** for all metrics\n"
+        md += "   - Always include time period in reporting\n"
+        md += "3. **Raw Data**: Limit to 5 rows maximum - use aggregation (GROUP BY) for larger datasets\n"
+        md += "4. **Panel Data**: Report for personas (e.g., \"average per female user/day\", not absolute totals)\n"
+        md += "5. **NCCS**: A+A1→A, C/D/E→C/D/E (auto-merged by system)\n"
+        md += "6. **Context**: Keep queries specific to avoid token overflow\n\n"
         md += "**Response Style**:\n"
         md += "- Detailed, actionable insights for brand managers\n"
         md += "- Focus on media planning and ecommerce strategy\n"

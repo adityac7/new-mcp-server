@@ -19,6 +19,8 @@ class Dataset(Base):
     description = Column(Text, nullable=True)
     connection_string_encrypted = Column(Text, nullable=False)
     metadata_text = Column(Text, nullable=True)  # Full schema metadata as markdown/text
+    date_range = Column(String(100), nullable=True)  # e.g., "Jan 2018 - Dec 2025"
+    date_column = Column(String(100), nullable=True)  # Primary date column name
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
