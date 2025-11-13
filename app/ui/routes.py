@@ -111,6 +111,30 @@ async def create_dataset(
 ):
     """Create new dataset and trigger background profiling"""
 
+    # Test connection first
+    from app.database import test_connection
+    is_valid, message = test_connection(connection_string)
+    if not is_valid:
+        # Return error page with error message
+        return templates.TemplateResponse("dataset_new.html", {
+            "request": request,
+            "error": f"Connection failed: {message}",
+            "name": name,
+            "description": description,
+            "connection_string": connection_string
+        }, status_code=400)
+
+    # Check if dataset name already exists
+    existing = db.query(Dataset).filter(Dataset.name == name).first()
+    if existing:
+        return templates.TemplateResponse("dataset_new.html", {
+            "request": request,
+            "error": f"Dataset name '{name}' already exists",
+            "name": name,
+            "description": description,
+            "connection_string": connection_string
+        }, status_code=400)
+
     # Encrypt connection string
     encryption_manager = get_encryption_manager()
     encrypted_conn_str = encryption_manager.encrypt(connection_string)
@@ -120,7 +144,7 @@ async def create_dataset(
         name=name,
         description=description,
         connection_string_encrypted=encrypted_conn_str,
-        is_active=True  # Mark as active immediately for local testing
+        is_active=True  # Mark as active immediately
     )
     db.add(dataset)
     db.commit()

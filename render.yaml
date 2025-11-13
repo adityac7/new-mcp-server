@@ -6,7 +6,7 @@ services:
     plan: free
     region: singapore
     buildCommand: pip install -r requirements.txt
-    startCommand: python server.py --port $PORT --host 0.0.0.0
+    startCommand: python start_ui.py $PORT
     envVars:
       - key: DATABASE_URL
         sync: false

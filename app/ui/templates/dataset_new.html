@@ -18,12 +18,25 @@
         <p class="mt-1 text-sm text-gray-600">Connect a new PostgreSQL database to your MCP server</p>
     </div>
 
+    <!-- Error Message -->
+    {% if error %}
+    <div class="mb-6 bg-red-50 border-l-4 border-red-400 p-4">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                </svg>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-red-700">{{ error }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Form -->
     <div class="bg-white shadow rounded-lg">
-        <form
-            hx-post="/ui/datasets"
-            hx-swap="none"
-            hx-on::after-request="if(event.detail.successful) { window.location.href='/ui/datasets'; } else { showToast('Error adding dataset', 'error'); }">
+        <form method="POST" action="/ui/datasets">
 
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900">Dataset Information</h3>
@@ -40,6 +53,7 @@
                         name="name"
                         id="name"
                         required
+                        value="{{ name or '' }}"
                         class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm"
                         placeholder="e.g., User Analytics Database">
                     <p class="mt-1 text-sm text-gray-500">A friendly name to identify this dataset</p>
@@ -55,7 +69,7 @@
                         id="description"
                         rows="3"
                         class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm"
-                        placeholder="Brief description of this dataset and its purpose"></textarea>
+                        placeholder="Brief description of this dataset and its purpose">{{ description or '' }}</textarea>
                     <p class="mt-1 text-sm text-gray-500">Optional description for documentation</p>
                 </div>
 
@@ -69,6 +83,7 @@
                         name="connection_string"
                         id="connection_string"
                         required
+                        value="{{ connection_string or '' }}"
                         class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm font-mono text-xs"
                         placeholder="postgresql://user:password@host:port/database">
                     <p class="mt-1 text-sm text-gray-500">Connection string will be encrypted and stored securely</p>
@@ -88,8 +103,8 @@
                                 <ul class="list-disc list-inside space-y-1">
                                     <li>Connection will be tested for validity</li>
                                     <li>Schema will be profiled (tables, columns, types)</li>
-                                    <li>AI metadata will be generated (GPT-4.1-mini)</li>
-                                    <li>Dataset will be ready for querying via MCP</li>
+                                    <li>AI metadata will be generated (GPT-4o-mini)</li>
+                                    <li>Dataset will be ready for querying via MCP (40 row limit)</li>
                                 </ul>
                                 <p class="mt-2 font-medium">Processing time: ~30-60 seconds</p>
                             </div>

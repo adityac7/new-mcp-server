@@ -37,8 +37,8 @@ import sqlparse
 import psycopg2
 
 # Security configuration
-MAX_ROWS = int(os.getenv('MAX_ROWS', 1000))
-MAX_RAW_ROWS = 5  # Maximum rows for raw data (no aggregation)
+MAX_ROWS = int(os.getenv('MAX_ROWS', 40))  # Changed to 40 rows limit
+MAX_RAW_ROWS = 40  # Maximum rows for all queries - changed to 40
 ALLOWED_STATEMENTS = ['SELECT']
 
 # Initialize FastMCP server
