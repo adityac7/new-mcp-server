@@ -150,12 +150,30 @@ async def create_dataset(
     db.commit()
     db.refresh(dataset)
 
-    # Trigger background profiling (skip if Redis/Celery not available)
+    # Try background profiling first, fallback to synchronous
+    profiled = False
     try:
         process_new_dataset.delay(dataset.id)
+        profiled = True
+        print(f"✅ Background profiling queued for dataset {dataset.id}")
     except Exception as e:
-        # If Celery/Redis not available, dataset is still created but without profiling
-        print(f"Warning: Background profiling not available: {e}")
+        print(f"⚠️  Celery not available: {e}")
+        print(f"   Falling back to synchronous profiling...")
+
+        # Fallback: Profile synchronously
+        try:
+            from profile_dataset import profile_dataset_sync
+            result = profile_dataset_sync(dataset.id)
+            if result["success"]:
+                profiled = True
+                print(f"✅ Synchronous profiling complete: {result['tables']} tables, {result['columns']} columns")
+            else:
+                print(f"❌ Profiling failed: {result.get('error')}")
+        except Exception as sync_error:
+            print(f"❌ Synchronous profiling also failed: {sync_error}")
+
+    if not profiled:
+        print(f"⚠️  Dataset {dataset.id} created but not profiled - run: python profile_dataset.py {dataset.id}")
 
     return RedirectResponse(url="/ui/datasets", status_code=303)
 
