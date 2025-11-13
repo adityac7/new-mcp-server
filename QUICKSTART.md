@@ -72,24 +72,35 @@ alembic upgrade head
 ### Step 4: Start the Server
 
 ```bash
-# Start with UI
-python start_ui.py
+# Start unified server (UI + MCP)
+python deploy_server.py
 
 # Or specify port
-python start_ui.py 8080
+python deploy_server.py 8080
 ```
 
-## 🌐 Accessing the UI
+## 🌐 Accessing the Server
 
-Once started, open your browser:
+Once started, you have two interfaces:
 
-**Web UI:** http://localhost:8000/ui
+### **1. Web UI** (for YOU - manage datasets)
+**URL:** http://localhost:8000/ui
 
-**Endpoints available:**
+**Pages:**
 - `http://localhost:8000/ui` - Dataset management dashboard
 - `http://localhost:8000/ui/datasets` - List all datasets
 - `http://localhost:8000/ui/datasets/new` - Add new dataset
 - `http://localhost:8000/ui/logs` - Query logs
+
+### **2. MCP API** (for ChatGPT/Claude - query data)
+**URL:** http://localhost:8000/mcp
+
+**Use this URL in:**
+- ChatGPT integrations
+- Claude Desktop config
+- Other MCP clients
+
+### **Other Endpoints:**
 - `http://localhost:8000/health` - Health check
 - `http://localhost:8000/docs` - API documentation
 
@@ -270,17 +281,38 @@ python start_ui.py
 
 Once your server is running:
 
-1. **Add datasets** via UI
+1. **Add datasets** via UI at `/ui/datasets/new`
 2. **View schema** for each dataset
-3. **Check query logs** to monitor usage
-4. **Connect MCP clients** (ChatGPT, Claude Desktop)
+3. **Connect ChatGPT/Claude** using MCP endpoint
+4. **Start querying your data!**
+
+## 🔌 Connecting MCP Clients
+
+**Your MCP URL:**
+```
+http://localhost:8000/mcp
+```
+
+**For Render.com deployment:**
+```
+https://your-app.onrender.com/mcp
+```
+
+**See full instructions:** `MCP_CONNECTION_GUIDE.md`
+
+- How to connect ChatGPT
+- How to connect Claude Desktop
+- Available MCP tools
+- Usage examples
+- Troubleshooting
 
 ## 📚 Additional Resources
 
-- `DEPLOY_VM.md` - Full VM deployment guide
-- `README.md` - Project overview
-- `API.md` - API documentation
-- `/docs` endpoint - Interactive API docs
+- **`MCP_CONNECTION_GUIDE.md`** - Connect ChatGPT and Claude Desktop ⭐
+- **`DEPLOY_VM.md`** - Full VM deployment guide
+- **`README.md`** - Project overview
+- **`API.md`** - API documentation
+- **`/docs` endpoint** - Interactive API docs
 
 ## 💬 Need Help?
 

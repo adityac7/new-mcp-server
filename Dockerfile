@@ -49,6 +49,7 @@ COPY ./app /app/app
 COPY ./alembic /app/alembic
 COPY ./alembic.ini /app/alembic.ini
 COPY ./server.py /app/server.py
+COPY ./deploy_server.py /app/deploy_server.py
 COPY ./.env.example /app/.env.example
 
 # Create non-root user for security
@@ -69,5 +70,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Default command - Run UI server (includes dataset management)
-CMD ["sh", "-c", "python start_ui.py ${PORT}"]
+# Default command - Run unified server (UI + MCP)
+CMD ["sh", "-c", "python deploy_server.py ${PORT}"]
